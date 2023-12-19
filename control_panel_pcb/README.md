@@ -25,9 +25,9 @@ copper circuitry more visible. Unfortunately this meant lighter features are
 overblown and darker detail crushed. That's fine... it doesn't need to look
 good, it just needs to be accurate!
 
-![stitched circuit board](./canon%20pixma%20mx340%20control%20panel%20pcb%20stitch%20exagerrated%20contrast.jpg)
+[![stitched circuit board](./canon%20pixma%20mx340%20control%20panel%20pcb%20stitch%20exagerrated%20contrast%20lowres.jpg)](./canon%20pixma%20mx340%20control%20panel%20pcb%20stitch%20exagerrated%20contrast.jpg)
 
-17249x3332 JPG
+Preview image (1920x371) shown here. Click for full resolution (17249x3332) image
 
 ## Source
 
