@@ -13,22 +13,44 @@ CONTROL_PANEL_NO_BUTTON = 0x80  # Default scan code for "no button pressed"
 with serial.Serial(
     port='/dev/cu.usbserial-ABSCE0EZ', **serial_parameters) as main_board, serial.Serial(
     port='/dev/cu.usbserial-AO002W1A', **serial_parameters) as control_panel:
+    # Main board
+    bulk_transfer_remaining = 0
+    command_bytes = 2
+    command = 0
+
+    # Control panel
     previous_control_panel_byte = CONTROL_PANEL_NO_BUTTON
-    idle_count = 0
-    mb_count = 0
+
+    # Both
+    ack_expected = 0
+
     while(True):
         if main_board.in_waiting > 0:
             # Read available data
             new_bytes = main_board.read(main_board.in_waiting)
             for new_byte in new_bytes:
-                mb_count += 1
-        elif mb_count > 0:
-            idle_count += 1
-
-        if idle_count > 100000:
-            print("Main board sent",str(mb_count),"bytes")
-            mb_count = 0
-            idle_count = 0
+                if bulk_transfer_remaining > 0:
+                    bulk_transfer_remaining -= 1
+                    if bulk_transfer_remaining == 0:
+                        ack_expected += 1
+                        command_bytes = 2
+                elif command_bytes > 0:
+                    if command_bytes == 2:
+                        command = new_byte
+                        command_bytes -= 1
+                    elif command_bytes == 1:
+                        if command == 0x06:
+                            print("INFO: Bulk transfer", new_byte)
+                            bulk_transfer_remaining = new_byte
+                        else:
+                            command = (command, new_byte)
+                            print("COMMAND", command)
+                        ack_expected += 1
+                        command_bytes = 2
+                    else:
+                        print("ERROR: Invalid count of command bytes",command_bytes)
+                else:
+                    print("ERROR: Unexpected state")
 
         if (control_panel.in_waiting > 0):
             # Read available data
@@ -36,7 +58,7 @@ with serial.Serial(
 
             for new_control_panel_byte in new_control_panel_bytes:
                 if (new_control_panel_byte == CONTROL_PANEL_ACK):
-                    None # Ignore ACK for now
+                    ack_expected -= 1
                 elif (new_control_panel_byte != previous_control_panel_byte):
                     print(hex(new_control_panel_byte), end=' ')
                     if new_control_panel_byte == CONTROL_PANEL_NO_BUTTON:
