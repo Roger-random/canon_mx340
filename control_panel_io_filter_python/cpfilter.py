@@ -15,7 +15,7 @@ with serial.Serial(
     port='/dev/cu.usbserial-AO002W1A', **serial_parameters) as control_panel:
     # Main board
     bulk_transfer_remaining = 0
-    command_bytes = 2
+    awaiting_command = True
     command = 0
 
     # Control panel
@@ -33,24 +33,21 @@ with serial.Serial(
                     bulk_transfer_remaining -= 1
                     if bulk_transfer_remaining == 0:
                         ack_expected += 1
-                        command_bytes = 2
-                elif command_bytes > 0:
-                    if command_bytes == 2:
-                        command = new_byte
-                        command_bytes -= 1
-                    elif command_bytes == 1:
-                        if command == 0x06:
-                            print("INFO: Bulk transfer", new_byte)
-                            bulk_transfer_remaining = new_byte
-                        else:
-                            command = (command, new_byte)
-                            print("COMMAND", command)
-                        ack_expected += 1
-                        command_bytes = 2
-                    else:
-                        print("ERROR: Invalid count of command bytes",command_bytes)
+                        awaiting_command = True
+                elif awaiting_command:
+                    # New byte is our next command
+                    command = new_byte
+                    awaiting_command = False
                 else:
-                    print("ERROR: Unexpected state")
+                    # New byte is parameter for next command
+                    if command == 0x06:
+                        # 0x06 is a bulk transfer command, its parameter is length in bytes.
+                        print("INFO: Bulk transfer incoming for", new_byte, "bytes")
+                        bulk_transfer_remaining = new_byte
+                    else:
+                        print("COMMAND", hex(command), hex(new_byte))
+                    ack_expected += 1
+                    awaiting_command = True
 
         if (control_panel.in_waiting > 0):
             # Read available data
