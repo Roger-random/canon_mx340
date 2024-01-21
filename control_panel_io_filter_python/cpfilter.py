@@ -9,10 +9,7 @@ known_commands = {
      "LCD screen update",
     (( 0x04, 0x75 )) : "LCD sleep",
     (( 0x04, 0xF5 )) : "LCD wake",
-    (( 0x0E, 0xFB )) : "LED update:  (WiFi) ON   (In Use/Memory) ON",
-    (( 0x0E, 0xFF )) : "LED update:  (WiFi) ON   (In Use/Memory) OFF",
-    (( 0x0E, 0xF9 )) : "LED update:  (WiFi) OFF  (In Use/Memory) ON",
-    (( 0x0E, 0xFD )) : "LED update:  (WiFi) OFF  (In Use/Memory) OFF",
+    (( 0xFE, 0xDC )) : "Hello"
 }
 
 serial_parameters = {
@@ -24,6 +21,8 @@ serial_parameters = {
 
 CONTROL_PANEL_ACK       = 0x20  # Acknowledgement of main board commands
 CONTROL_PANEL_NO_BUTTON = 0x80  # Default scan code for "no button pressed"
+
+MAIN_BOARD_TIMEOUT      = 10000 # Inaccurate timer highly dependent on CPU speed
 
 with serial.Serial(
     port='/dev/cu.usbserial-ABSCE0EZ', **serial_parameters) as main_board, serial.Serial(
@@ -58,9 +57,26 @@ with serial.Serial(
                     awaiting_command = False
                 else:
                     command_sequence.append((command, new_byte))
-                    if command == 0x06:
-                        # 0x06 is a bulk transfer command, its parameter is length in bytes.
-                        bulk_transfer_remaining = new_byte
+
+                    # Parse and respond to select commands
+                    match command:
+                        case 0x06:
+                            # 0x06 is a bulk transfer command, its parameter is length in bytes.
+                            bulk_transfer_remaining = new_byte
+                        case 0x0E:
+                            # 0x0E updates pins controlling some onboard LEDs
+                            led_inuse = "OFF"
+                            led_wifi = "OFF"
+                            if 0==(new_byte & 0b0100):
+                                led_inuse = "ON "
+                            if 0!=(new_byte & 0b0010):
+                                led_wifi = "ON "
+                            print("LED update: [In Use/Memory]",led_inuse,"   [WiFi]",led_wifi)
+
+                            # Onboard LED update command is understood and
+                            # can be removed from running command list
+                            command_sequence.pop()
+
                     ack_expected += 1
                     awaiting_command = True
 
@@ -75,7 +91,7 @@ with serial.Serial(
                         print(known_commands[candidate_command])
                         command_sequence.clear()
 
-        elif main_board_idle_count > 10000 and len(command_sequence)>0:
+        elif main_board_idle_count > MAIN_BOARD_TIMEOUT and len(command_sequence)>0:
             print("UNKNOWN COMMAND ",end='')
             for step in command_sequence:
                 print("(",hex(step[0]), ',', hex(step[1]),"), ",end='')
