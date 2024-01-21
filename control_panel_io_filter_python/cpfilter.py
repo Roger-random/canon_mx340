@@ -37,6 +37,9 @@ CONTROL_PANEL_NO_BUTTON = 0x80  # Default scan code for "no button pressed"
 
 MAIN_BOARD_TIMEOUT      = 10000 # Inaccurate timer highly dependent on CPU speed
 
+MAIN_BOARD_PREFIX       = "Main Board:"
+CONTROL_PANEL_PREFIX    = "    Control Panel:"
+
 with serial.Serial(
     port='/dev/cu.usbserial-ABSCE0EZ', **serial_parameters) as main_board, serial.Serial(
     port='/dev/cu.usbserial-AO002W1A', **serial_parameters) as control_panel:
@@ -65,9 +68,11 @@ with serial.Serial(
                         ack_expected += 1
                         awaiting_command = True
                 elif awaiting_command:
-                    # New byte is our next command
-                    command = new_byte
-                    awaiting_command = False
+                    # Zero is not a valid command, ignore spurious data.
+                    if new_byte != 0:
+                        # New byte is our next command
+                        command = new_byte
+                        awaiting_command = False
                 else:
                     command_sequence.append((command, new_byte))
 
@@ -88,7 +93,7 @@ with serial.Serial(
                                 led_inuse = "ON "
                             if 0!=(new_byte & 0b0010):
                                 led_wifi = "ON "
-                            print("LED update: [In Use/Memory]",led_inuse,"   [WiFi]",led_wifi)
+                            print(MAIN_BOARD_PREFIX, "LED update: [In Use/Memory]",led_inuse,"   [WiFi]",led_wifi)
 
                             # Onboard LED update command is understood and
                             # can be removed from running command list
@@ -97,6 +102,7 @@ with serial.Serial(
                     ack_expected += 1
                     awaiting_command = True
 
+                    # See if the current command sequence matches any known
                     candidate_command = tuple(command_sequence)
                     if len(command_sequence) == 1:
                         # Stumbled across a Python special case I don't understand
@@ -105,11 +111,11 @@ with serial.Serial(
                         candidate_command = tuple(command_sequence[0])
 
                     if candidate_command in known_commands:
-                        print(known_commands[candidate_command])
+                        print(MAIN_BOARD_PREFIX,known_commands[candidate_command])
                         command_sequence.clear()
 
         elif main_board_idle_count > MAIN_BOARD_TIMEOUT and len(command_sequence)>0:
-            print("UNKNOWN COMMAND ",end='')
+            print(MAIN_BOARD_PREFIX,"UNKNOWN COMMAND ",end='')
             for step in command_sequence:
                 print("(",hex(step[0]), ',', hex(step[1]),"), ",end='')
             print("")
@@ -125,7 +131,7 @@ with serial.Serial(
                 if (new_control_panel_byte == CONTROL_PANEL_ACK):
                     ack_expected -= 1
                 elif (new_control_panel_byte != previous_control_panel_byte):
-                    print(hex(new_control_panel_byte), end=' ')
+                    print(CONTROL_PANEL_PREFIX,hex(new_control_panel_byte), end=' ')
                     if new_control_panel_byte == CONTROL_PANEL_NO_BUTTON:
                         print("button released")
                     elif new_control_panel_byte == 0x40:
