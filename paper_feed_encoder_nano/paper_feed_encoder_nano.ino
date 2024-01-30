@@ -13,13 +13,19 @@
 Encoder myEnc(2, 3);
 //   avoid using pins with LEDs attached
 
+const int paperPin = 6;
+const int gearPin = 8;
+
 unsigned long millisNextPrint;
 unsigned long millisPerPrint = 10;
 
 void setup() {
   Serial.begin(250000);
-  Serial.println("milliseconds,position");
+  Serial.println("milliseconds,position,paper,gear");
   millisNextPrint = millis();
+
+  pinMode(paperPin, INPUT);
+  pinMode(gearPin, INPUT);
 }
 
 void loop() {
@@ -27,6 +33,10 @@ void loop() {
   if (millis() > millisNextPrint) {
     millisNextPrint += millisPerPrint;
     Serial.print(millis());
+    Serial.print(",");
+    Serial.print(digitalRead(paperPin));
+    Serial.print(",");
+    Serial.print(digitalRead(gearPin));
     Serial.print(",");
     Serial.println(newPosition);
   }
