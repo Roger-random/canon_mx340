@@ -13,17 +13,21 @@
 Encoder myEnc(2, 3);
 //   avoid using pins with LEDs attached
 
-void setup() {
-  Serial.begin(115200);
-  Serial.println("Basic Encoder Test:");
-}
+unsigned long millisNextPrint;
+unsigned long millisPerPrint = 10;
 
-long oldPosition  = -999;
+void setup() {
+  Serial.begin(250000);
+  Serial.println("Basic Encoder Test:");
+  millisNextPrint = millis();
+}
 
 void loop() {
   long newPosition = myEnc.read();
-  if (newPosition != oldPosition) {
-    oldPosition = newPosition;
+  if (millis() > millisNextPrint) {
+    millisNextPrint += millisPerPrint;
+    Serial.print(millis());
+    Serial.print(" ");
     Serial.println(newPosition);
   }
 }
