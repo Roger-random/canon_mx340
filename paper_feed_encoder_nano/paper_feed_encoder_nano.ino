@@ -18,7 +18,7 @@ unsigned long millisPerPrint = 10;
 
 void setup() {
   Serial.begin(250000);
-  Serial.println("Basic Encoder Test:");
+  Serial.println("milliseconds,position");
   millisNextPrint = millis();
 }
 
@@ -27,7 +27,7 @@ void loop() {
   if (millis() > millisNextPrint) {
     millisNextPrint += millisPerPrint;
     Serial.print(millis());
-    Serial.print(" ");
+    Serial.print(",");
     Serial.println(newPosition);
   }
 }
