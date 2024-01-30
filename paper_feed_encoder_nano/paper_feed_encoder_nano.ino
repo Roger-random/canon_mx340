@@ -21,7 +21,7 @@ unsigned long millisPerPrint = 10;
 
 void setup() {
   Serial.begin(250000);
-  Serial.println("milliseconds,position,paper,gear");
+  Serial.println("milliseconds,paper,gear,position");
   millisNextPrint = millis();
 
   pinMode(paperPin, INPUT);
