@@ -1,4 +1,9 @@
-/* Encoder Library - Basic Example
+/* 
+ * Quick tool for exploring Canon Pixma MX340
+ * 
+ * 
+ * 
+ * Derived from Encoder Library - Basic Example
  * http://www.pjrc.com/teensy/td_libs_Encoder.html
  *
  * This example code is in the public domain.
