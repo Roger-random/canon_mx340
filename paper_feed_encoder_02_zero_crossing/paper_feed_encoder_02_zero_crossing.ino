@@ -24,18 +24,58 @@ Encoder myEnc(2, 3);
 const int paperPin = 6; // Probably reports paper presence
 const int gearPin = 8; // Something in a gearbox of yet-unknown purpose
 
+// Record-keeping structure for tracking activity across multiple encoder
+// read operations
+typedef struct EncoderPosition 
+{
+  unsigned long timeStamp;
+           long position;
+           long count;
+} EncoderPosition;
+
+// How much hisory to keep?
+const int historyLength = 10;
+
+// Current position in history
+int historyIndex = 0;
+
+// The historical record itself
+EncoderPosition history[historyLength];
+
 void setup() {
   Serial.begin(250000);
-  Serial.println("milliseconds,paper,gear,position_change,changed_time,status");
 
   pinMode(paperPin, INPUT);
   pinMode(gearPin, INPUT);
+
+  historyIndex = 0;
+
+  history[historyIndex].timeStamp = micros();
+  history[historyIndex].position = myEnc.read();
+  history[historyIndex].count = 1;
+
+  Serial.println("timestamp,position,count");
 }
 
 void loop() {
-  unsigned long timeStamp = millis();
+  unsigned long timeStamp = micros();
 
   long newPosition = myEnc.read();
   bool newPaper = digitalRead(paperPin);
   bool newGear = digitalRead(gearPin);
+
+  if ( newPosition == history[historyIndex].position ) {
+    history[historyIndex].count++;
+  } else {
+    Serial.print(history[historyIndex].timeStamp);
+    Serial.print(",");
+    Serial.print(history[historyIndex].position);
+    Serial.print(",");
+    Serial.println(history[historyIndex].count);
+
+    // Single entry test doesn't change historyIndex yet
+    history[historyIndex].timeStamp = timeStamp;
+    history[historyIndex].position = newPosition;
+    history[historyIndex].count = 1;
+  }
 }
