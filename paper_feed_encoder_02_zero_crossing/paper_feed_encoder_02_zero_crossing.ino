@@ -31,6 +31,7 @@ typedef struct EncoderPosition
   unsigned long timeStamp;
            long position;
            long count;
+           long timePerPosition;
 } EncoderPosition;
 
 // How much hisory to keep?
@@ -54,7 +55,7 @@ void setup() {
   history[historyIndex].position = myEnc.read();
   history[historyIndex].count = 1;
 
-  Serial.println("timestamp,position,count");
+  Serial.println("timestamp,position,count,us_per_position");
 }
 
 void loop() {
@@ -67,11 +68,22 @@ void loop() {
   if ( newPosition == history[historyIndex].position ) {
     history[historyIndex].count++;
   } else {
+    history[historyIndex].timePerPosition = 0;
+    // Limiting timePerPosition for positions held briefly. Otherwise output
+    // values are skewed with large numbers that are not interesting.
+    if (history[historyIndex].count < 10000) {
+      history[historyIndex].timePerPosition = 
+        (long)(timeStamp - history[historyIndex].timeStamp) / 
+        (newPosition - history[historyIndex].position);
+    }
+
     Serial.print(history[historyIndex].timeStamp);
     Serial.print(",");
     Serial.print(history[historyIndex].position);
     Serial.print(",");
-    Serial.println(history[historyIndex].count);
+    Serial.print(history[historyIndex].count);
+    Serial.print(",");
+    Serial.println(history[historyIndex].timePerPosition);
 
     // Single entry test doesn't change historyIndex yet
     history[historyIndex].timeStamp = timeStamp;
