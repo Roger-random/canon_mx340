@@ -1,6 +1,6 @@
-/* 
+/*
  * Quick tool for exploring Canon Pixma MX340
- * 
+ *
  * Continuously reads the quadrature encoder reporting rotation of
  * paper feed shaft, plus two photo interrupter sensors associated
  * with paper operations. Reports when the shaft starts or stops
@@ -26,7 +26,7 @@ const int gearPin = 8; // Something in a gearbox of yet-unknown purpose
 
 // Record-keeping structure for tracking activity across multiple encoder
 // read operations
-typedef struct EncoderPosition 
+typedef struct EncoderPosition
 {
   unsigned long timeStamp;
            long position;
@@ -34,14 +34,21 @@ typedef struct EncoderPosition
            long timePerPosition;
 } EncoderPosition;
 
-// How much hisory to keep?
-const int historyLength = 10;
+// Time per position threshold. Values above this threshold are slow enough
+// to be treated as if stopped.
+const long timePerPositionThreshold = 10000;
 
-// Current position in history
-int historyIndex = 0;
+// How much hisory to keep?
+const int historyLength = 2;
 
 // The historical record itself
 EncoderPosition history[historyLength];
+
+// Current position in history
+int historyCurrent = 0;
+
+// Previous history entry position
+int historyPrevious = 0;
 
 void setup() {
   Serial.begin(250000);
@@ -49,15 +56,47 @@ void setup() {
   pinMode(paperPin, INPUT);
   pinMode(gearPin, INPUT);
 
-  historyIndex = 0;
+  historyCurrent = 0;
+  historyPrevious = 0;
 
-  history[historyIndex].timeStamp = micros();
-  history[historyIndex].position = myEnc.read();
-  history[historyIndex].count = 1;
+  history[historyCurrent].timeStamp = micros();
+  history[historyCurrent].position = myEnc.read();
+  history[historyCurrent].count = 1;
 
-  Serial.println("timestamp,position,count,us_per_position");
+  Serial.println("timestamp,position,count,us_enc");
 }
 
+// Print specified history entry to serial port
+void printHistoryEntry(int entryIndex) {
+    Serial.print(history[entryIndex].timeStamp);
+    Serial.print(",");
+    Serial.print(history[entryIndex].position);
+    Serial.print(",");
+    Serial.print(history[entryIndex].count);
+    Serial.print(",");
+    Serial.println(history[entryIndex].timePerPosition);
+}
+
+// Advance pointers
+void advanceHistoryPointers() {
+  // Were we tracking a previous history entry separate from current
+  // history entry?
+  bool diffPrevious = (historyPrevious != historyCurrent);
+
+  if (diffPrevious) {
+    // There were separate pointers, so print previous and update.
+    printHistoryEntry(historyPrevious);
+    historyPrevious = historyCurrent;
+  }
+
+  if (historyCurrent == 0) {
+    historyCurrent = 1;
+  } else {
+    historyCurrent = 0;
+  }
+}
+
+// Encoder+sensor polling loop
 void loop() {
   unsigned long timeStamp = micros();
 
@@ -65,29 +104,39 @@ void loop() {
   bool newPaper = digitalRead(paperPin);
   bool newGear = digitalRead(gearPin);
 
-  if ( newPosition == history[historyIndex].position ) {
-    history[historyIndex].count++;
+  if ( newPosition == history[historyCurrent].position ) {
+    // Encoder position has not changed
+    history[historyCurrent].count++;
+  }
+  else if ( historyPrevious != historyCurrent &&
+            newPosition == history[historyPrevious].position ) {
+    // If we have a previous position on record, and we've merely bounced back
+    // to that position, collapse 'current' and 'previous' entries together.
+    history[historyPrevious].count += history[historyCurrent].count;
+
+    // And continue as if 'historyCurrent' never happened.
+    historyCurrent = historyPrevious;
   } else {
-    history[historyIndex].timePerPosition = 0;
-    // Limiting timePerPosition for positions held briefly. Otherwise output
-    // values are skewed with large numbers that are not interesting.
-    if (history[historyIndex].count < 10000) {
-      history[historyIndex].timePerPosition = 
-        (long)(timeStamp - history[historyIndex].timeStamp) / 
-        (newPosition - history[historyIndex].position);
+    // Calculate microseconds per encoder count. Negative values reflect
+    // decrementing encoder count. It does not mean time reversal.
+    long us_enc =
+        (long)(timeStamp - history[historyCurrent].timeStamp) /
+        (newPosition - history[historyCurrent].position);
+
+    if ( us_enc > timePerPositionThreshold) {
+      // Cap slow motions at threshold value
+      history[historyCurrent].timePerPosition = timePerPositionThreshold;
+    } else if ( us_enc < -timePerPositionThreshold) {
+      // Cap slow motions at threshold value
+      history[historyCurrent].timePerPosition = -timePerPositionThreshold;
+    } else {
+      history[historyCurrent].timePerPosition = us_enc;
     }
 
-    Serial.print(history[historyIndex].timeStamp);
-    Serial.print(",");
-    Serial.print(history[historyIndex].position);
-    Serial.print(",");
-    Serial.print(history[historyIndex].count);
-    Serial.print(",");
-    Serial.println(history[historyIndex].timePerPosition);
+    advanceHistoryPointers();
 
-    // Single entry test doesn't change historyIndex yet
-    history[historyIndex].timeStamp = timeStamp;
-    history[historyIndex].position = newPosition;
-    history[historyIndex].count = 1;
+    history[historyCurrent].timeStamp = timeStamp;
+    history[historyCurrent].position = newPosition;
+    history[historyCurrent].count = 1;
   }
 }
