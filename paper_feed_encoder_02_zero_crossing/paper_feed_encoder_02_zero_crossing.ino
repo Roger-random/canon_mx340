@@ -50,6 +50,9 @@ int historyCurrent = 0;
 // Previous history entry position
 int historyPrevious = 0;
 
+// Previous position report
+EncoderPosition prevReport;
+
 void setup() {
   Serial.begin(250000);
 
@@ -63,7 +66,10 @@ void setup() {
   history[historyCurrent].position = myEnc.read();
   history[historyCurrent].count = 1;
 
-  Serial.println("timestamp,position,count,us_enc");
+  Serial.println("timestamp,duration,count");
+
+  prevReport = history[historyCurrent];
+  prevReport.timeStamp = 0;
 }
 
 // Print specified history entry to serial port
@@ -80,12 +86,8 @@ void printHistoryEntry(int entryIndex) {
 // Advance pointers
 void advanceHistoryPointers() {
   // Were we tracking a previous history entry separate from current
-  // history entry?
-  bool diffPrevious = (historyPrevious != historyCurrent);
-
-  if (diffPrevious) {
-    // There were separate pointers, so print previous and update.
-    printHistoryEntry(historyPrevious);
+  // history entry? If so, update separately.
+  if (historyPrevious != historyCurrent) {
     historyPrevious = historyCurrent;
   }
 
@@ -107,6 +109,17 @@ void loop() {
   if ( newPosition == history[historyCurrent].position ) {
     // Encoder position has not changed
     history[historyCurrent].count++;
+
+    if (prevReport.timeStamp < history[historyCurrent].timeStamp &&
+        (timeStamp - history[historyCurrent].timeStamp) > timePerPositionThreshold) {
+      Serial.print(prevReport.timeStamp);
+      Serial.print(",");
+      Serial.print(history[historyCurrent].timeStamp - prevReport.timeStamp);
+      Serial.print(",");
+      Serial.print(history[historyCurrent].position - prevReport.position);
+      Serial.println("");
+      prevReport = history[historyCurrent];
+    }
   }
   else if ( historyPrevious != historyCurrent &&
             newPosition == history[historyPrevious].position ) {
@@ -123,15 +136,7 @@ void loop() {
         (long)(timeStamp - history[historyCurrent].timeStamp) /
         (newPosition - history[historyCurrent].position);
 
-    if ( us_enc > timePerPositionThreshold) {
-      // Cap slow motions at threshold value
-      history[historyCurrent].timePerPosition = timePerPositionThreshold;
-    } else if ( us_enc < -timePerPositionThreshold) {
-      // Cap slow motions at threshold value
-      history[historyCurrent].timePerPosition = -timePerPositionThreshold;
-    } else {
-      history[historyCurrent].timePerPosition = us_enc;
-    }
+    history[historyCurrent].timePerPosition = us_enc;
 
     advanceHistoryPointers();
 
