@@ -76,17 +76,6 @@ void setup() {
   prevReport = history[historyCurrent];
 }
 
-// Print specified history entry to serial port
-void printHistoryEntry(int entryIndex) {
-    Serial.print(history[entryIndex].timeStamp);
-    Serial.print(",");
-    Serial.print(history[entryIndex].position);
-    Serial.print(",");
-    Serial.print(history[entryIndex].count);
-    Serial.print(",");
-    Serial.println(history[entryIndex].timePerPosition);
-}
-
 // Advance pointers
 void advanceHistoryPointers() {
   // Were we tracking a previous history entry separate from current
@@ -115,6 +104,7 @@ void loop() {
     history[historyCurrent].count++;
 
     if (prevReport.timeStamp < history[historyCurrent].timeStamp &&
+        abs(prevReport.position - history[historyCurrent].position) > 10 &&
         (timeStamp - history[historyCurrent].timeStamp) > timePerPositionThreshold) {
       Serial.print(prevReport.timeStamp);
       Serial.print(",");
@@ -134,32 +124,11 @@ void loop() {
     // And continue as if 'historyCurrent' never happened.
     historyCurrent = historyPrevious;
   } else {
-    long us_enc = 0;
-
-    if ( prevReport.timeStamp == history[historyCurrent].timeStamp) {
-      // We are transitioning from a stopped state. Print info about
-      // the previous stop.
-      Serial.print(prevReport.timeStamp);
-      Serial.print(",");
-      Serial.print(prevTimeStamp - prevReport.timeStamp);
-      Serial.println(",0");
-      prevReport = history[historyCurrent];
-      prevReport.timeStamp = prevTimeStamp;
-
-      // Calculate microseconds per encoder count. Negative values reflect
-      // decrementing encoder count. It does not mean time reversal.
-      us_enc =
-        (long)(timeStamp - prevTimeStamp) /
-        (newPosition - history[historyCurrent].position);
-    } else {
-      // Calculate microseconds per encoder count. Negative values reflect
-      // decrementing encoder count. It does not mean time reversal.
-      us_enc =
-        (long)(timeStamp - history[historyCurrent].timeStamp) /
-        (newPosition - history[historyCurrent].position);
-    }
-
-    history[historyCurrent].timePerPosition = us_enc;
+    // Calculate microseconds per encoder count. Negative values reflect
+    // decrementing encoder count. It does not mean time reversal.
+    history[historyCurrent].timePerPosition =
+      (long)(timeStamp - history[historyCurrent].timeStamp) /
+      (newPosition - history[historyCurrent].position);;
 
     advanceHistoryPointers();
 
