@@ -53,6 +53,9 @@ int historyPrevious = 0;
 // Previous position report
 EncoderPosition prevReport;
 
+// Timestamp of previous loop() poll
+unsigned long prevTimeStamp;
+
 void setup() {
   Serial.begin(250000);
 
@@ -62,14 +65,15 @@ void setup() {
   historyCurrent = 0;
   historyPrevious = 0;
 
-  history[historyCurrent].timeStamp = micros();
+  prevTimeStamp = micros();
+
+  history[historyCurrent].timeStamp = prevTimeStamp;
   history[historyCurrent].position = myEnc.read();
   history[historyCurrent].count = 1;
 
   Serial.println("timestamp,duration,count");
 
   prevReport = history[historyCurrent];
-  prevReport.timeStamp = 0;
 }
 
 // Print specified history entry to serial port
@@ -130,11 +134,30 @@ void loop() {
     // And continue as if 'historyCurrent' never happened.
     historyCurrent = historyPrevious;
   } else {
-    // Calculate microseconds per encoder count. Negative values reflect
-    // decrementing encoder count. It does not mean time reversal.
-    long us_enc =
+    long us_enc = 0;
+
+    if ( prevReport.timeStamp == history[historyCurrent].timeStamp) {
+      // We are transitioning from a stopped state. Print info about
+      // the previous stop.
+      Serial.print(prevReport.timeStamp);
+      Serial.print(",");
+      Serial.print(prevTimeStamp - prevReport.timeStamp);
+      Serial.println(",0");
+      prevReport = history[historyCurrent];
+      prevReport.timeStamp = prevTimeStamp;
+
+      // Calculate microseconds per encoder count. Negative values reflect
+      // decrementing encoder count. It does not mean time reversal.
+      us_enc =
+        (long)(timeStamp - prevTimeStamp) /
+        (newPosition - history[historyCurrent].position);
+    } else {
+      // Calculate microseconds per encoder count. Negative values reflect
+      // decrementing encoder count. It does not mean time reversal.
+      us_enc =
         (long)(timeStamp - history[historyCurrent].timeStamp) /
         (newPosition - history[historyCurrent].position);
+    }
 
     history[historyCurrent].timePerPosition = us_enc;
 
@@ -144,4 +167,6 @@ void loop() {
     history[historyCurrent].position = newPosition;
     history[historyCurrent].count = 1;
   }
+
+  prevTimeStamp = timeStamp;
 }
