@@ -60,6 +60,9 @@ unsigned long prevTimeStamp;
 bool prevPaper;
 bool prevGear;
 
+// Smallest microseconds per encoder value seen recently
+long min_us_enc;
+
 void setup() {
   Serial.begin(250000);
 
@@ -75,11 +78,13 @@ void setup() {
   history[historyCurrent].position = myEnc.read();
   history[historyCurrent].count = 1;
 
-  Serial.println("timestamp,count");
+  Serial.println("timestamp,count,min_us_enc");
 
   prevReport = history[historyCurrent];
   prevPaper = digitalRead(paperPin);
   prevGear = digitalRead(gearPin);
+
+  min_us_enc = timePerPositionThreshold;
 }
 
 // Advance pointers
@@ -117,8 +122,12 @@ void loop() {
       Serial.print(prevReport.timeStamp);
       Serial.print(",");
       Serial.print(history[historyCurrent].position - prevReport.position);
+      Serial.print(",");
+      Serial.print(min_us_enc);
       Serial.println("");
+
       prevReport = history[historyCurrent];
+      min_us_enc = timePerPositionThreshold;
     }
   }
   else if ( historyPrevious != historyCurrent &&
@@ -132,9 +141,15 @@ void loop() {
   } else {
     // Calculate microseconds per encoder count. Negative values reflect
     // decrementing encoder count. It does not mean time reversal.
-    history[historyCurrent].timePerPosition =
+    long us_enc = 
       (long)(timeStamp - history[historyCurrent].timeStamp) /
-      (newPosition - history[historyCurrent].position);;
+      (newPosition - history[historyCurrent].position);
+
+    history[historyCurrent].timePerPosition = us_enc;
+
+    if ( abs(us_enc) < abs(min_us_enc)) {
+      min_us_enc = us_enc;
+    }
 
     advanceHistoryPointers();
 
