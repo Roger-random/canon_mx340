@@ -71,7 +71,7 @@ void setup() {
   history[historyCurrent].position = myEnc.read();
   history[historyCurrent].count = 1;
 
-  Serial.println("timestamp,duration,count");
+  Serial.println("timestamp,count");
 
   prevReport = history[historyCurrent];
 }
@@ -107,8 +107,6 @@ void loop() {
         abs(prevReport.position - history[historyCurrent].position) > 10 &&
         (timeStamp - history[historyCurrent].timeStamp) > timePerPositionThreshold) {
       Serial.print(prevReport.timeStamp);
-      Serial.print(",");
-      Serial.print(history[historyCurrent].timeStamp - prevReport.timeStamp);
       Serial.print(",");
       Serial.print(history[historyCurrent].position - prevReport.position);
       Serial.println("");
