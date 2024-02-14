@@ -56,6 +56,10 @@ EncoderPosition prevReport;
 // Timestamp of previous loop() poll
 unsigned long prevTimeStamp;
 
+// Previous state of photo interrupter sensors
+bool prevPaper;
+bool prevGear;
+
 void setup() {
   Serial.begin(250000);
 
@@ -74,6 +78,8 @@ void setup() {
   Serial.println("timestamp,count");
 
   prevReport = history[historyCurrent];
+  prevPaper = digitalRead(paperPin);
+  prevGear = digitalRead(gearPin);
 }
 
 // Advance pointers
@@ -106,6 +112,8 @@ void loop() {
     if (prevReport.timeStamp < history[historyCurrent].timeStamp &&
         abs(prevReport.position - history[historyCurrent].position) > 10 &&
         (timeStamp - history[historyCurrent].timeStamp) > timePerPositionThreshold) {
+      // Encoder position has held for longer than threshold, interpreting as
+      // end of movement. Time to print a line of report.
       Serial.print(prevReport.timeStamp);
       Serial.print(",");
       Serial.print(history[historyCurrent].position - prevReport.position);
@@ -135,5 +143,19 @@ void loop() {
     history[historyCurrent].count = 1;
   }
 
+  if (prevPaper != newPaper) {
+    Serial.print(timeStamp);
+    Serial.print(",paper,");
+    Serial.println(newPaper);
+  }
+
+  if (prevGear != newGear) {
+    Serial.print(timeStamp);
+    Serial.print(",gear,");
+    Serial.println(newGear);
+  }
+
+  prevPaper = newPaper;
+  prevGear = newGear;
   prevTimeStamp = timeStamp;
 }
