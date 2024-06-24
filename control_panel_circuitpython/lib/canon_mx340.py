@@ -1,5 +1,48 @@
-import board
+# MIT License
+
+# Copyright (c) 2023 Roger Cheng
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+"""
+Canon MX340
+============================================================
+
+A CircuitPython library with several classes to communicate with components of
+a Canon Pixma MX340 multi-function inkjet. Allows a microcontroller running
+CircuitPython to take the place of the MX340 main logic board.
+
+For electrical connection pinout see:
+https://newscrewdriver.com/2023/12/21/canon-pixma-mx340-control-panel-connector-to-main-board-pinout/
+
+Written entirely in CircuitPython and can be used by copying this file
+into the `\lib` subdirectory of CIRCUITPY volume.
+
+Includes several dependencies that will also need to be copied into `\lib`
+from CircuitPython library bundle.
+https://docs.circuitpython.org/projects/bundle/en/latest/
+"""
+
+# This library makes use of async/await model for asynchronous coroutines
 import asyncio
+
+# CircuitPython libraries for digital communication
 import digitalio
 import busio
 
@@ -17,11 +60,13 @@ uart_tx_retry_limit = 16
 # are discarded when the queue is full.
 key_event_queue_length = 64
 
-# Constants for all key scan codes.
-# https://newscrewdriver.com/2024/01/14/canon-pixma-mx340-control-panel-button-press-report-values/
-# Code format follows Adafruit HID Key codes:
-# https://github.com/adafruit/Adafruit_CircuitPython_HID/blob/main/adafruit_hid/keycode.py
 class Keycode:
+    """
+    Constants for all key scan codes.
+    https://newscrewdriver.com/2024/01/14/canon-pixma-mx340-control-panel-button-press-report-values/
+    Code format follows Adafruit HID Key codes:
+    https://github.com/adafruit/Adafruit_CircuitPython_HID/blob/main/adafruit_hid/keycode.py
+    """
     NONE        = 0X80 # When no keys are pressed
     COPY        = 0XA9
     FAX         = 0XAB
@@ -88,11 +133,14 @@ keycode_string = dict({
     Keycode.COLOR:      "Color"
 })
 
-# Copied MVLSBFormat from
-# https://github.com/adafruit/Adafruit_CircuitPython_framebuf/blob/main/adafruit_framebuf.py
-# Then modified from least-significant bit nearest top of screen to most-significant-bit up top
 class MVMSBFormat:
-    """MVMSBFormat"""
+    """
+    MVMSBFormat
+
+    Copied MVLSBFormat from
+    https://github.com/adafruit/Adafruit_CircuitPython_framebuf/blob/main/adafruit_framebuf.py
+    Then modified from least-significant bit nearest top of screen to most-significant-bit up top
+    """
 
     @staticmethod
     def set_pixel(framebuf, x, y, color):
@@ -139,8 +187,10 @@ class MVMSBFormat:
             y += 1
             height -= 1
 
-# FrameBuffer class for drawing on the byte array
 class K13988_FrameBuffer(adafruit_framebuf.FrameBuffer):
+    """
+    FrameBuffer class for drawing on the byte array
+    """
     def __init__(self, buffer_bytearray):
         super().__init__(buffer_bytearray, 196, 34)
 
@@ -148,6 +198,14 @@ class K13988_FrameBuffer(adafruit_framebuf.FrameBuffer):
         self.format = MVMSBFormat()
 
 class K13988:
+    """
+    Handles communication with K13988 chip in charge of the control panel.
+    Intended to be used via context manager syntax ('with' keyword)
+
+    :param tx_pin: Microcontroller pin for UART data transmission to K13988
+    :param rx_pin: Microcontroller pin to recieve UART data transmission from K13988
+    :param enable_pin: Microcontroller pin for K13988 chip enable
+    """
     def __init__(self, tx_pin: microcontroller.Pin, rx_pin: microcontroller.Pin, enable_pin: microcontroller.Pin):
         # Task synchronization
         self._transmit_lock = asyncio.Lock()
@@ -168,12 +226,12 @@ class K13988:
         self._led_state = bytearray(b'\x0E\xFD')
         self._key_event_queue = deque((), key_event_queue_length, True)
 
-    # Get reference to raw frame buffer bytearray
     def get_frame_buffer_bytearray(self):
+        """Returns reference to raw frame buffer `bytearray`"""
         return self._framebuffer_bytearray
 
-    # Data receive task
     async def _uart_receiver(self):
+        """UART data receiver listening coroutine"""
         while True:
             while self._uart.in_waiting < 1:
                 await asyncio.sleep(0)
@@ -202,13 +260,13 @@ class K13988:
                 # Key matrix scan report unchanged, take no action
                 pass
 
-    # Wait for ACK
     async def _wait_for_ack(self):
+        """Hold execution until acknowledgement byte is received"""
         while self._ack_count < 1:
             await asyncio.sleep(0)
 
-    # Send data to K13988
     async def _uart_sender(self, bytes):
+        """Send data to K13988"""
         assert bytes is not None
         assert len(bytes) == 2 or len(bytes) == 196
 
@@ -258,8 +316,8 @@ class K13988:
         b'\x04\xF5'  # Turn on LCD
     ]
 
-    # Initialize K13988
     async def _initialize_k13988(self):
+        """Initialize K13988"""
         # Wait for first byte from K13988 before transmitting initialization
         await self._transmit_startup.wait()
 
@@ -270,8 +328,8 @@ class K13988:
         # Set initialization complete event
         self._initialization_complete.set()
 
-    # Following precedence of RGBMatrix, method to send frame buffer to screen
     async def refresh(self):
+        """Following precedence of RGBMatrix, method to send frame buffer to screen"""
         async with self._transmit_lock:
             for stripe in range(5):
                 await self._send_lcd_stripe(stripe)
@@ -280,8 +338,8 @@ class K13988:
     # identified with the corresponding hexadecimal value
     _stripe_id_lookup = [b'\x04\x4D', b'\x04\xCD', b'\x04\x2D', b'\x04\xAD', b'\x04\x6D']
 
-    # Send to LCD one horizontal stripes of 8 vertical pixels.
     async def _send_lcd_stripe(self, stripe_num: int):
+        """Send to LCD: one horizontal stripes of 8 vertical pixels."""
         stripe_slice_start = stripe_num*196
         stripe_slice_end = stripe_slice_start+196
 
@@ -292,36 +350,36 @@ class K13988:
 
         await self._uart_sender(self._framebuffer_bytearray[stripe_slice_start:stripe_slice_end])
 
-    # Transmit LED sate to K13988
     async def _send_led_state(self):
+        """Transmit LED sate to K13988"""
         async with self._transmit_lock:
             await self._uart_sender(self._led_state)
 
-    # Update bit flag corresponding to In Use/Memory LED based on parameter
     async def in_use_led(self, newState):
+        """Update bit flag corresponding to In Use/Memory LED based on parameter"""
         if newState:
             self._led_state[1] = self._led_state[1] & 0b11111011
         else:
             self._led_state[1] = self._led_state[1] | 0b00000100
         await self._send_led_state()
 
-    # Update bit flag corresponding to WiFi LED based on parameter
     async def wifi_led(self, newState):
+        """Update bit flag corresponding to WiFi LED based on parameter"""
         if newState:
             self._led_state[1] = self._led_state[1] | 0b00000010
         else:
             self._led_state[1] = self._led_state[1] & 0b11111101
         await self._send_led_state()
 
-    # Get a key event. (If no event, returns None)
     def get_key_event(self):
+        """Get a key event. If no event, returns None"""
         if len(self._key_event_queue) == 0:
             return None
         else:
             return self._key_event_queue.popleft()
 
-    # Asynchronous context manager entry to set up K13988 communications
     async def __aenter__(self):
+        """Asynchronous context manager entry to set up K13988 communications"""
         # Soft reset K13988 with disable + enable
         self._enable.value = False
         await asyncio.sleep(0.25)
@@ -336,7 +394,7 @@ class K13988:
         # We are all set up and ready for application code
         return self
 
-    # Asynchronous context manager exit to clean up K13988 communications
     async def __aexit__(self, exc_type, exc, tb):
+        """Asynchronous context manager exit to clean up K13988 communications"""
         self._enable.value = False
         self.receiver_task.cancel()
