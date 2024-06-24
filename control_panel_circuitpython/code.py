@@ -43,6 +43,11 @@ import digitalio
 # Direct-wired buttons
 from keypad import Keys
 
+# PNG load and parsing
+from displayio import Bitmap, Palette
+import adafruit_imageload
+cat_squid_filename = "tinycatsquid.bmp"
+
 # K13988 chip and passthrough to LCD
 import canon_mx340
 
@@ -89,6 +94,32 @@ async def printkeys(k13988):
     print("Starting printkeys()")
 
     framebuffer = canon_mx340.K13988_FrameBuffer(k13988.get_frame_buffer_bytearray())
+
+    try:
+        cat_squid_bitmap, _ = adafruit_imageload.load(cat_squid_filename)
+
+        # Just a quick hack for fun, so hard-coded for a three-color bitmap.
+        # 0 == transparent
+        # 1 == black
+        # 2 == white
+
+        print("loaded {0}: {1} x {2}".format(cat_squid_filename, cat_squid_bitmap.width, cat_squid_bitmap.height))
+        for y in range(cat_squid_bitmap.height):
+            line = ""
+            for x in range(cat_squid_bitmap.width):
+                pixel = cat_squid_bitmap[x,y]
+                if pixel == 0:
+                    line = line + " "
+                elif pixel == 1:
+                    line = line + "X"
+                elif pixel == 2:
+                    line = line + "."
+                else:
+                    line = line + str(pixel)
+            print(line)
+    except:
+        print("Unable to load {0}".format(cat_squid_filename))
+
     await write_keycode_string(k13988, framebuffer, canon_mx340.Keycode.NONE)
 
     while True:
