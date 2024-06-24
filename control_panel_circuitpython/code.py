@@ -100,6 +100,12 @@ class Cat_Squid_Screen_Saver:
         self.cat_squid_positions = [(66,2), (72,2), (72,4), (66,4)]
         self.cat_squid_current_position = 0
         self.cat_squid_bitmap = None
+        self.parallax_far = [(12,4), (43,23), (75,15), (105,30), (130,4), (165,12)]
+        self.parallax_far_x_current = 0
+        self.parallax_far_x_delta = -4
+        self.parallax_near = [(45,23), (100,35), (150,10)]
+        self.parallax_near_x_current = 0
+        self.parallax_near_x_delta = -8
 
     def load(self):
         self.cat_squid_bitmap, _ = adafruit_imageload.load(cat_squid_filename)
@@ -112,6 +118,19 @@ class Cat_Squid_Screen_Saver:
             self.cat_squid_current_position = (self.cat_squid_current_position + 1) % len(self.cat_squid_positions)
 
             self.framebuffer.fill(1)
+            for far in self.parallax_far:
+                x = (far[0]+self.parallax_far_x_current)%196
+                y = far[1]
+                self.framebuffer.rect(x, y, 2, 2, 0)
+            self.parallax_far_x_current = (self.parallax_far_x_current + 196 + self.parallax_far_x_delta)%196
+
+            for near in self.parallax_near:
+                x = (near[0]+self.parallax_near_x_current)%196
+                y = near[1]
+                self.framebuffer.fill_rect(x,y,4,2,0)
+                self.framebuffer.fill_rect(x+1,y-1,2,4,0)
+            self.parallax_near_x_current = (self.parallax_near_x_current + 196 + self.parallax_near_x_delta)%196
+
             for y in range(self.cat_squid_bitmap.height):
                 for x in range(self.cat_squid_bitmap.width):
                     pixel = self.cat_squid_bitmap[x,y]
