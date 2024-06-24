@@ -39,6 +39,7 @@ CircuitPython microcontroller should be a matter of updating board pin names.
 import board
 import asyncio
 import digitalio
+import time
 
 # Direct-wired buttons
 from keypad import Keys
@@ -47,6 +48,7 @@ from keypad import Keys
 from displayio import Bitmap, Palette
 import adafruit_imageload
 cat_squid_filename = "tinycatsquid.bmp"
+screen_saver_timeout = 10
 
 # K13988 chip and passthrough to LCD
 import canon_mx340
@@ -89,13 +91,16 @@ async def write_keycode_string(k13988, framebuffer, key_number):
     framebuffer.text(key_name, text_x, text_y, 1, font_name="lib/font5x8.bin", size=text_size)
     await k13988.refresh()
 
-async def printkeys(k13988):
-    """Poll for key events and show information to LCD screen"""
-    print("Starting printkeys()")
+class Cat_Squid_Screen_Saver:
+    def __init__(self, k13988, framebuffer):
+        self.k13988 = k13988
+        self.framebuffer = framebuffer
+        self.screen_saver_frame_period = 0.25
+        self.screen_saver_next_update = time.monotonic()
+        self.cat_squid_positions = [(20,5), (40,5), (40,15), (20,15)]
+        self.cat_squid_current_position = 0
 
-    framebuffer = canon_mx340.K13988_FrameBuffer(k13988.get_frame_buffer_bytearray())
-
-    try:
+    def load(self):
         cat_squid_bitmap, _ = adafruit_imageload.load(cat_squid_filename)
 
         # Just a quick hack for fun, so hard-coded for a three-color bitmap.
@@ -117,11 +122,40 @@ async def printkeys(k13988):
                 else:
                     line = line + str(pixel)
             print(line)
+
+    async def loop(self):
+        if time.monotonic() > self.screen_saver_next_update:
+            self.screen_saver_next_update = time.monotonic() + self.screen_saver_frame_period
+
+            self.framebuffer.fill(1)
+            self.framebuffer.text(
+                "Cat & Squid",
+                self.cat_squid_positions[self.cat_squid_current_position][0], # X coordinate
+                self.cat_squid_positions[self.cat_squid_current_position][1], # Y coordinate
+                0,
+                font_name="lib/font5x8.bin",
+                size=2)
+            self.cat_squid_current_position = (self.cat_squid_current_position + 1) % len(self.cat_squid_positions)
+            await self.k13988.refresh()
+
+async def printkeys(k13988):
+    """Poll for key events and show information to LCD screen"""
+    print("Starting printkeys()")
+
+    framebuffer = canon_mx340.K13988_FrameBuffer(k13988.get_frame_buffer_bytearray())
+    screen_saver = Cat_Squid_Screen_Saver(k13988, framebuffer)
+
+    # Clear screen to display "(None)"
+    await write_keycode_string(k13988, framebuffer, canon_mx340.Keycode.NONE)
+
+    # Load bitmap for "screen saver"
+    try:
+        screen_saver.load()
     except:
         print("Unable to load {0}".format(cat_squid_filename))
 
-    await write_keycode_string(k13988, framebuffer, canon_mx340.Keycode.NONE)
-
+    # Enter key input response loop
+    last_active_time = time.time()
     while True:
         key = k13988.get_key_event()
         if key:
@@ -129,6 +163,10 @@ async def printkeys(k13988):
                 await write_keycode_string(k13988, framebuffer, key.key_number)
             else:
                 await write_keycode_string(k13988, framebuffer, canon_mx340.Keycode.NONE)
+            last_active_time = time.time()
+        elif time.time() > (last_active_time + screen_saver_timeout):
+            await screen_saver.loop()
+
         await asyncio.sleep(0)
 
 async def direct_wired(k13988):
