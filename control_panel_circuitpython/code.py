@@ -97,45 +97,38 @@ class Cat_Squid_Screen_Saver:
         self.framebuffer = framebuffer
         self.screen_saver_frame_period = 0.25
         self.screen_saver_next_update = time.monotonic()
-        self.cat_squid_positions = [(20,5), (40,5), (40,15), (20,15)]
+        self.cat_squid_positions = [(66,2), (72,2), (72,4), (66,4)]
         self.cat_squid_current_position = 0
+        self.cat_squid_bitmap = None
 
     def load(self):
-        cat_squid_bitmap, _ = adafruit_imageload.load(cat_squid_filename)
-
-        # Just a quick hack for fun, so hard-coded for a three-color bitmap.
-        # 0 == transparent
-        # 1 == black
-        # 2 == white
-
-        print("loaded {0}: {1} x {2}".format(cat_squid_filename, cat_squid_bitmap.width, cat_squid_bitmap.height))
-        for y in range(cat_squid_bitmap.height):
-            line = ""
-            for x in range(cat_squid_bitmap.width):
-                pixel = cat_squid_bitmap[x,y]
-                if pixel == 0:
-                    line = line + " "
-                elif pixel == 1:
-                    line = line + "X"
-                elif pixel == 2:
-                    line = line + "."
-                else:
-                    line = line + str(pixel)
-            print(line)
+        self.cat_squid_bitmap, _ = adafruit_imageload.load(cat_squid_filename)
 
     async def loop(self):
         if time.monotonic() > self.screen_saver_next_update:
             self.screen_saver_next_update = time.monotonic() + self.screen_saver_frame_period
 
-            self.framebuffer.fill(1)
-            self.framebuffer.text(
-                "Cat & Squid",
-                self.cat_squid_positions[self.cat_squid_current_position][0], # X coordinate
-                self.cat_squid_positions[self.cat_squid_current_position][1], # Y coordinate
-                0,
-                font_name="lib/font5x8.bin",
-                size=2)
+            start_x, start_y = self.cat_squid_positions[self.cat_squid_current_position]
             self.cat_squid_current_position = (self.cat_squid_current_position + 1) % len(self.cat_squid_positions)
+
+            self.framebuffer.fill(1)
+            for y in range(self.cat_squid_bitmap.height):
+                for x in range(self.cat_squid_bitmap.width):
+                    pixel = self.cat_squid_bitmap[x,y]
+
+                    # Just a quick hack for fun, so hard-coded for a three-color bitmap.
+                    # 0 == transparent
+                    # 1 == black
+                    # 2 == white
+                    if pixel == 0:
+                        pass
+                    elif pixel == 1:
+                        self.framebuffer.pixel(start_x+x, start_y+y, 1)
+                    elif pixel == 2:
+                        self.framebuffer.pixel(start_x+x, start_y+y, 0)
+                    else:
+                        print("Unexpected bitmap pixel color {0}".format(pixel))
+
             await self.k13988.refresh()
 
 async def printkeys(k13988):
